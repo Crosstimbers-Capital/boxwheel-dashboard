@@ -1,0 +1,14 @@
+{
+  "buildCommand": "npm run build",
+  "framework": "nextjs",
+  "regions": ["iad1"],
+  "env": {
+    "TRIDENT_DB_HOST": "@trident-db-host",
+    "TRIDENT_DB_NAME": "@trident-db-name",
+    "TRIDENT_DB_USER": "@trident-db-user",
+    "TRIDENT_DB_PASSWORD": "@trident-db-password",
+    "ANALYTICS_DB_HOST": "@analytics-db-host",
+    "ANALYTICS_DB_NAME": "@analytics-db-name",
+    "DASHBOARD_PASSWORD": "@dashboard-password"
+  }
+}
