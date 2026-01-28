@@ -1,6 +1,4 @@
 import { Header } from '@/components/layout'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { queryTrident } from '@/lib/db'
 import {
   utilizationByBranch,
@@ -50,13 +48,12 @@ async function getFleetData() {
   }
 }
 
-/**
- * Get utilization color based on percentage
- */
-function getUtilizationColor(util: number): string {
-  if (util >= 0.8) return 'bg-green-100 text-green-800'
-  if (util >= 0.6) return 'bg-yellow-100 text-yellow-800'
-  return 'bg-red-100 text-red-800'
+function getUtilizationClass(util: number): string {
+  if (util >= 0.8) return 'util-full'
+  if (util >= 0.7) return 'util-high'
+  if (util >= 0.6) return 'util-mid'
+  if (util >= 0.4) return 'util-low'
+  return 'util-empty'
 }
 
 export default async function FleetPage() {
@@ -72,164 +69,210 @@ export default async function FleetPage() {
   })
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col min-h-screen">
       <Header
         title="Fleet Utilization"
-        description="Utilization metrics by branch, type, and age bucket"
+        description="Utilization by type, age bucket, and branch"
       />
 
-      <div className="p-6 space-y-6">
+      <div className="flex-1 p-5">
         {error ? (
-          <Card className="border-destructive">
-            <CardHeader>
-              <CardTitle className="text-destructive">Error</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">{error}</p>
-            </CardContent>
-          </Card>
+          <div className="surface-raised rounded-lg border p-5">
+            <h3
+              className="font-semibold mb-1"
+              style={{ color: 'hsl(var(--alert))' }}
+            >
+              Error
+            </h3>
+            <p className="text-sm" style={{ color: 'hsl(var(--ink-muted))' }}>
+              {error}
+            </p>
+          </div>
         ) : (
-          <>
-            {/* Utilization by Type */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Utilization by Trailer Type</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="space-y-5">
+            {/* Utilization by Type - compact cards */}
+            <div className="surface-raised rounded-lg border">
+              <div className="px-5 py-3 border-b">
+                <h2 className="font-semibold">By Trailer Type</h2>
+              </div>
+              <div className="p-4">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   {byType.slice(0, 8).map((type) => (
                     <div
                       key={type.trailer_type}
-                      className="flex items-center justify-between p-3 rounded-lg border"
+                      className="flex items-center justify-between p-3 rounded border"
+                      style={{ borderColor: 'hsl(var(--border))' }}
                     >
                       <div>
-                        <p className="font-medium">{type.trailer_type}</p>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="font-medium text-sm">
+                          {type.trailer_type}
+                        </p>
+                        <p
+                          className="text-xs tabular-nums"
+                          style={{ color: 'hsl(var(--ink-muted))' }}
+                        >
                           {formatNumber(type.leased_trailers)} /{' '}
                           {formatNumber(type.total_trailers)}
                         </p>
                       </div>
-                      <Badge
-                        className={getUtilizationColor(type.utilization || 0)}
+                      <span
+                        className={`px-2 py-0.5 rounded text-xs font-semibold tabular-nums ${getUtilizationClass(
+                          type.utilization || 0
+                        )}`}
                       >
                         {formatPercent(type.utilization || 0)}
-                      </Badge>
+                      </span>
                     </div>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
-            {/* Utilization Matrix (Type x Usage) */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Utilization Matrix</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Trailer Type x Age Bucket (Usage Category)
+            {/* Utilization Matrix - Heatmap */}
+            <div className="surface-raised rounded-lg border">
+              <div className="px-5 py-3 border-b">
+                <h2 className="font-semibold">Utilization Matrix</h2>
+                <p
+                  className="text-xs mt-0.5"
+                  style={{ color: 'hsl(var(--ink-muted))' }}
+                >
+                  Type × Age Bucket
                 </p>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left py-2 px-3 font-medium">Type</th>
-                        {usages.map((usage) => (
-                          <th
-                            key={usage}
-                            className="text-center py-2 px-3 font-medium"
-                          >
-                            {usage}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {types.map((type) => (
-                        <tr key={type} className="border-b">
-                          <td className="py-2 px-3 font-medium">{type}</td>
-                          {usages.map((usage) => {
-                            const cell = matrixMap.get(`${type}-${usage}`)
-                            if (!cell || cell.total_trailers === 0) {
-                              return (
-                                <td
-                                  key={usage}
-                                  className="text-center py-2 px-3 text-muted-foreground"
-                                >
-                                  —
-                                </td>
-                              )
-                            }
+              </div>
+              <div className="p-4 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr>
+                      <th
+                        className="text-left py-2 px-3 font-medium text-xs"
+                        style={{ color: 'hsl(var(--ink-muted))' }}
+                      >
+                        Type
+                      </th>
+                      {usages.map((usage) => (
+                        <th
+                          key={usage}
+                          className="text-center py-2 px-3 font-medium text-xs"
+                          style={{ color: 'hsl(var(--ink-muted))' }}
+                        >
+                          {usage}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {types.map((type) => (
+                      <tr key={type}>
+                        <td className="py-1.5 px-3 font-medium text-sm">
+                          {type}
+                        </td>
+                        {usages.map((usage) => {
+                          const cell = matrixMap.get(`${type}-${usage}`)
+                          if (!cell || cell.total_trailers === 0) {
                             return (
-                              <td key={usage} className="text-center py-2 px-3">
+                              <td key={usage} className="py-1.5 px-2">
                                 <div
-                                  className={`inline-block px-2 py-1 rounded ${getUtilizationColor(
-                                    cell.utilization || 0
-                                  )}`}
+                                  className="util-cell text-center py-2 px-2"
+                                  style={{
+                                    background: 'hsl(var(--steel-dim))',
+                                    color: 'hsl(var(--ink-faint))',
+                                  }}
                                 >
-                                  <div className="font-medium">
-                                    {formatPercent(cell.utilization || 0)}
-                                  </div>
-                                  <div className="text-xs opacity-75">
-                                    ({formatNumber(cell.total_trailers)})
-                                  </div>
+                                  <span className="text-xs">—</span>
                                 </div>
                               </td>
                             )
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Utilization by Branch */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Utilization by Branch</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left py-2 font-medium">Branch</th>
-                        <th className="text-right py-2 font-medium">Total</th>
-                        <th className="text-right py-2 font-medium">Leased</th>
-                        <th className="text-right py-2 font-medium">
-                          Utilization
-                        </th>
+                          }
+                          return (
+                            <td key={usage} className="py-1.5 px-2">
+                              <div
+                                className={`util-cell text-center py-2 px-2 ${getUtilizationClass(
+                                  cell.utilization || 0
+                                )}`}
+                              >
+                                <div className="font-semibold text-sm tabular-nums">
+                                  {formatPercent(cell.utilization || 0)}
+                                </div>
+                                <div className="text-[10px] opacity-70 tabular-nums">
+                                  {formatNumber(cell.total_trailers)}
+                                </div>
+                              </div>
+                            </td>
+                          )
+                        })}
                       </tr>
-                    </thead>
-                    <tbody>
-                      {byBranch.map((branch) => (
-                        <tr key={branch.branch} className="border-b">
-                          <td className="py-2">{branch.branch}</td>
-                          <td className="text-right py-2">
-                            {formatNumber(branch.total_trailers)}
-                          </td>
-                          <td className="text-right py-2">
-                            {formatNumber(branch.leased_trailers)}
-                          </td>
-                          <td className="text-right py-2">
-                            <Badge
-                              className={getUtilizationColor(
-                                branch.utilization || 0
-                              )}
-                            >
-                              {formatPercent(branch.utilization || 0)}
-                            </Badge>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          </>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Branch Table */}
+            <div className="surface-raised rounded-lg border">
+              <div className="px-5 py-3 border-b">
+                <h2 className="font-semibold">By Branch</h2>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr style={{ background: 'hsl(var(--steel-dim))' }}>
+                      <th
+                        className="text-left py-2.5 px-5 font-medium text-xs"
+                        style={{ color: 'hsl(var(--ink-muted))' }}
+                      >
+                        Branch
+                      </th>
+                      <th
+                        className="text-right py-2.5 px-5 font-medium text-xs"
+                        style={{ color: 'hsl(var(--ink-muted))' }}
+                      >
+                        Total
+                      </th>
+                      <th
+                        className="text-right py-2.5 px-5 font-medium text-xs"
+                        style={{ color: 'hsl(var(--ink-muted))' }}
+                      >
+                        Leased
+                      </th>
+                      <th
+                        className="text-right py-2.5 px-5 font-medium text-xs"
+                        style={{ color: 'hsl(var(--ink-muted))' }}
+                      >
+                        Utilization
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {byBranch.map((branch) => (
+                      <tr
+                        key={branch.branch}
+                        className="border-b border-gray-100 last:border-0 hover:bg-gray-50/50"
+                      >
+                        <td className="py-2.5 px-5 font-medium">
+                          {branch.branch}
+                        </td>
+                        <td className="py-2.5 px-5 text-right tabular-nums">
+                          {formatNumber(branch.total_trailers)}
+                        </td>
+                        <td className="py-2.5 px-5 text-right tabular-nums">
+                          {formatNumber(branch.leased_trailers)}
+                        </td>
+                        <td className="py-2.5 px-5 text-right">
+                          <span
+                            className={`inline-block px-2 py-0.5 rounded text-xs font-semibold tabular-nums ${getUtilizationClass(
+                              branch.utilization || 0
+                            )}`}
+                          >
+                            {formatPercent(branch.utilization || 0)}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

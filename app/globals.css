@@ -4,48 +4,67 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-    --radius: 0.5rem;
-  }
+    /* Boxwheel Industrial Palette */
 
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    /* Surfaces - from yard to office */
+    --asphalt: 220 13% 10%;        /* Deep charcoal - sidebar, frames */
+    --asphalt-light: 220 10% 16%;  /* Elevated dark surfaces */
+    --steel: 220 10% 98%;          /* Light content area */
+    --steel-dim: 220 10% 95%;      /* Subtle card backgrounds */
+    --concrete: 220 8% 46%;        /* Muted text */
+    --concrete-light: 220 8% 64%;  /* Even lighter muted */
+
+    /* Text hierarchy */
+    --ink: 220 13% 8%;             /* Primary text */
+    --ink-muted: 220 10% 40%;      /* Secondary text */
+    --ink-faint: 220 8% 56%;       /* Tertiary text */
+    --ink-inverse: 220 10% 96%;    /* Text on dark */
+
+    /* Brand - Boxwheel lime green */
+    --lime: 72 61% 52%;            /* Primary brand color */
+    --lime-dark: 72 55% 38%;       /* Darker for text on light bg */
+    --lime-muted: 72 40% 48%;      /* Softer accent */
+    --lime-subtle: 72 50% 94%;     /* Background tint */
+
+    /* Semantic */
+    --alert: 0 72% 51%;            /* Problems, low utilization */
+    --alert-muted: 0 55% 95%;      /* Alert backgrounds */
+    --success: 72 61% 45%;         /* Good status - uses brand lime */
+    --success-muted: 72 45% 92%;   /* Success backgrounds */
+    --warning: 38 92% 50%;         /* Caution */
+    --warning-muted: 38 80% 94%;   /* Warning backgrounds */
+
+    /* Utilization heatmap - empty to full (cool to warm-green) */
+    --util-empty: 215 20% 65%;     /* Slate - low utilization */
+    --util-low: 200 15% 55%;       /* Cool gray */
+    --util-mid: 55 60% 50%;        /* Yellow-green - getting there */
+    --util-high: 72 55% 48%;       /* Lime - strong */
+    --util-full: 72 61% 45%;       /* Brand lime - excellent */
+
+    /* Structure */
+    --border: 220 10% 90%;
+    --border-strong: 220 10% 82%;
+    --ring: 72 61% 52%;
+    --radius: 0.375rem;
+
+    /* Mapped to shadcn expectations */
+    --background: var(--steel);
+    --foreground: var(--ink);
+    --card: 0 0% 100%;
+    --card-foreground: var(--ink);
+    --popover: 0 0% 100%;
+    --popover-foreground: var(--ink);
+    --primary: var(--lime);
+    --primary-foreground: 0 0% 100%;
+    --secondary: var(--steel-dim);
+    --secondary-foreground: var(--ink);
+    --muted: var(--steel-dim);
+    --muted-foreground: var(--ink-muted);
+    --accent: var(--lime-subtle);
+    --accent-foreground: var(--ink);
+    --destructive: var(--alert);
+    --destructive-foreground: 0 0% 100%;
+    --input: var(--border);
   }
 }
 
@@ -53,7 +72,42 @@
   * {
     @apply border-border;
   }
+
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Tabular numbers for data */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  /* Utilization heatmap cell */
+  .util-cell {
+    @apply rounded transition-colors;
+    min-width: 4.5rem;
+  }
+
+  .util-empty { background: hsl(var(--util-empty) / 0.15); color: hsl(var(--util-empty)); }
+  .util-low { background: hsl(var(--util-low) / 0.15); color: hsl(var(--util-low)); }
+  .util-mid { background: hsl(var(--util-mid) / 0.18); color: hsl(55 55% 32%); }
+  .util-high { background: hsl(var(--util-high) / 0.2); color: hsl(72 50% 30%); }
+  .util-full { background: hsl(var(--util-full) / 0.22); color: hsl(72 55% 28%); }
+}
+
+@layer utilities {
+  /* Subtle surface elevation */
+  .surface-raised {
+    background: hsl(0 0% 100%);
+    box-shadow:
+      0 1px 2px hsl(220 10% 50% / 0.04),
+      0 1px 3px hsl(220 10% 50% / 0.06);
+  }
+
+  .surface-inset {
+    background: hsl(var(--steel-dim));
   }
 }
