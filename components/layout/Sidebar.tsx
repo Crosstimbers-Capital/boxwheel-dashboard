@@ -1,13 +1,15 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard,
   Truck,
   DollarSign,
   Clock,
-  Building2,
+  MapPin,
+  FileDown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -16,26 +18,30 @@ const navigation = [
   { name: 'Fleet Utilization', href: '/fleet', icon: Truck },
   { name: 'Revenue', href: '/revenue', icon: DollarSign },
   { name: 'Idle Assets', href: '/idle', icon: Clock },
-  { name: 'Branches', href: '/branches', icon: Building2 },
+  { name: 'Location Tracking', href: '/locations', icon: MapPin },
+  { name: 'Reports', href: '/reports', icon: FileDown },
 ]
 
 export function Sidebar() {
   const pathname = usePathname()
 
   return (
-    <div className="flex h-full w-64 flex-col border-r bg-card">
+    <div className="flex h-full w-56 flex-col" style={{ background: 'hsl(220, 13%, 10%)' }}>
       {/* Logo */}
-      <div className="flex h-16 items-center border-b px-6">
+      <div className="flex h-16 items-center px-5" style={{ borderBottom: '1px solid hsl(220, 10%, 18%)' }}>
         <Link href="/" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold">
-            BW
-          </div>
-          <span className="text-lg font-semibold">Boxwheel</span>
+          <Image
+            src="/boxwheel_logo.png"
+            alt="Boxwheel Analytics"
+            width={130}
+            height={36}
+            className="h-9 w-auto"
+          />
         </Link>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 p-4">
+      <nav className="flex-1 space-y-1 p-3">
         {navigation.map((item) => {
           const isActive = pathname === item.href
           return (
@@ -43,11 +49,14 @@ export function Sidebar() {
               key={item.name}
               href={item.href}
               className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                'flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors',
                 isActive
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  ? 'text-[hsl(72,61%,52%)]'
+                  : 'text-[hsl(220,10%,65%)] hover:text-[hsl(220,10%,90%)]'
               )}
+              style={{
+                background: isActive ? 'hsl(220, 10%, 16%)' : undefined,
+              }}
             >
               <item.icon className="h-5 w-5" />
               {item.name}
@@ -57,10 +66,13 @@ export function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="border-t p-4">
-        <p className="text-xs text-muted-foreground">
-          Data refreshed nightly ~7PM MST
-        </p>
+      <div className="p-3" style={{ borderTop: '1px solid hsl(220, 10%, 18%)' }}>
+        <div className="rounded-md p-3" style={{ background: 'hsl(220, 10%, 14%)' }}>
+          <p className="text-xs font-medium" style={{ color: 'hsl(220, 10%, 80%)' }}>Data Refresh</p>
+          <p className="text-xs mt-0.5" style={{ color: 'hsl(220, 10%, 55%)' }}>
+            Nightly at ~7:00 PM MST
+          </p>
+        </div>
       </div>
     </div>
   )

@@ -1,1 +1,6 @@
 export { UtilizationTrend } from './UtilizationTrend'
+export { UtilizationGauge } from './UtilizationGauge'
+export { TrendChart } from './TrendChart'
+export { BarChartComponent } from './BarChart'
+export { DonutChart } from './DonutChart'
+export { HeatmapChart } from './HeatmapChart'
