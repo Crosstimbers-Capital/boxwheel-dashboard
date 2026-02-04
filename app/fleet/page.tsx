@@ -1,10 +1,11 @@
 import { Suspense } from 'react'
 import { Header } from '@/components/layout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { KpiCard, KpiGrid } from '@/components/ui/kpi-card'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Badge } from '@/components/ui/badge'
 import { queryTrident, queryAnalytics } from '@/lib/db'
-import { fleetDataCombined } from '@/lib/queries/utilization'
+import {
+  fleetDataCombined,
+} from '@/lib/queries/utilization'
 import { activeBranches } from '@/lib/queries/branches'
 import { formatNumber, formatPercent } from '@/lib/utils'
 import { getUtilizationStatus, buckets } from '@/lib/config'
@@ -155,12 +156,24 @@ async function getFleetData() {
   }
 }
 
-export default async function FleetUtilizationPage() {
-  const { global, byBranch, byType, byUsage, matrix, branches, trendData, error } = await getFleetData()
+/**
+ * Get utilization class based on percentage
+ */
+function getUtilizationClass(util: number): string {
+  if (util >= 0.8) return 'util-full'
+  if (util >= 0.7) return 'util-high'
+  if (util >= 0.6) return 'util-mid'
+  if (util >= 0.4) return 'util-low'
+  return 'util-empty'
+}
+
+export default async function FleetPage() {
+  const { byBranch, byType, byUsage, matrix, branches, trendData, error } = await getFleetData()
 
   // Transform matrix data for heatmap
   const types = [...new Set(matrix.map(m => m.type_bucket))].sort()
   const usageCategories = ['OTR_0', 'OTR_1', 'OTR_2', 'CART_1', 'CART_2', 'STORAGE']
+  
   const heatmapData = matrix.map(m => ({
     row: m.type_bucket,
     col: m.usage_category,
@@ -194,14 +207,14 @@ export default async function FleetUtilizationPage() {
     <div className="flex flex-col min-h-screen">
       <Header
         title="Fleet Utilization"
-        description="Breakdown of utilization by type, usage category, and branch"
+        description="Utilization metrics by branch, type, and age bucket"
       />
 
-      <div className="flex-1 p-6 space-y-6">
+      <div className="p-6 space-y-6">
         {error ? (
           <Card className="border-destructive">
             <CardHeader>
-              <CardTitle className="text-destructive">Error Loading Data</CardTitle>
+              <CardTitle className="text-destructive">Error</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">{error}</p>
@@ -209,188 +222,113 @@ export default async function FleetUtilizationPage() {
           </Card>
         ) : (
           <>
-            {/* Filters */}
             <FleetFilters branches={branches} />
 
-            {/* KPI Summary */}
-            <KpiGrid columns={4}>
-              <KpiCard
-                title="Overall Utilization"
-                value={formatPercent(global?.utilization || 0)}
-                subtitle={`${formatNumber(global?.leased_trailers || 0)} on rent`}
-                status={getUtilizationStatus(global?.utilization || 0)}
-                icon={Truck}
-              />
-              <KpiCard
-                title="Total Fleet"
-                value={formatNumber(global?.total_trailers || 0)}
-                subtitle="Active trailers"
-                status="neutral"
-              />
-              <KpiCard
-                title="Available"
-                value={formatNumber(global?.available_trailers || 0)}
-                subtitle="Ready to lease"
-                status="neutral"
-              />
-              <KpiCard
-                title="Branches"
-                value={byBranch.length}
-                subtitle="Active locations"
-                status="neutral"
-              />
-            </KpiGrid>
-
-            {/* Utilization Trend */}
-            {trendData.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Utilization Trend (Last 12 Months)</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <TrendChart
-                    data={trendData as { [key: string]: string | number }[]}
-                    xKey="month"
-                    lines={[
-                      { key: 'utilization', label: 'Utilization' }
-                    ]}
-                    formatType="percent"
-                    showThresholds={true}
-                    thresholdType="utilization"
-                    height={300}
-                  />
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Heatmap: Type x Usage */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Utilization Matrix: Type × Usage Category</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <HeatmapChart
-                  data={heatmapData}
-                  rows={types}
-                  cols={usageCategories}
-                  colorScale="utilization"
-                />
-                <div className="mt-4 flex items-center justify-center gap-6 text-xs text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-green-100 rounded" />
-                    <span>80%+ (Good)</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-amber-100 rounded" />
-                    <span>60-80% (Fair)</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-red-100 rounded" />
-                    <span>&lt;60% (Low)</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Charts Row */}
+            {/* Utilization by Type */}
             <div className="grid gap-6 lg:grid-cols-2">
-              {/* By Type */}
-              <Card>
+              <Card className="surface-raised border-0">
                 <CardHeader>
-                  <CardTitle>Utilization by Type</CardTitle>
+                  <CardTitle className="text-base font-semibold">Utilization by Trailer Type</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <BarChartComponent
                     data={typeChartData}
                     xKey="name"
-                    bars={[{ key: 'utilization', label: 'Utilization' }]}
+                    bars={[{ key: 'utilization', label: 'Utilization', color: 'hsl(var(--lime))' }]}
                     formatType="percent"
-                    colorByStatus={true}
-                    statusKey="utilization"
-                    layout="vertical"
                     height={300}
                   />
                 </CardContent>
               </Card>
 
-              {/* By Usage Category */}
-              <Card>
+              <Card className="surface-raised border-0">
                 <CardHeader>
-                  <CardTitle>Utilization by Usage Category</CardTitle>
+                  <CardTitle className="text-base font-semibold">Utilization by Age Bucket</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <BarChartComponent
                     data={usageChartData}
                     xKey="name"
-                    bars={[{ key: 'utilization', label: 'Utilization' }]}
+                    bars={[{ key: 'utilization', label: 'Utilization', color: 'hsl(var(--lime-muted))' }]}
                     formatType="percent"
-                    colorByStatus={true}
-                    statusKey="utilization"
-                    layout="vertical"
                     height={300}
                   />
                 </CardContent>
               </Card>
             </div>
 
-            {/* Branch Comparison */}
-            <Card>
+            {/* Utilization Matrix (Heatmap) */}
+            <Card className="surface-raised border-0">
               <CardHeader>
-                <CardTitle>Branch Utilization Comparison</CardTitle>
+                <CardTitle className="text-base font-semibold">Utilization Matrix</CardTitle>
+                <p className="text-sm text-muted-foreground">Trailer Type x Age Bucket (Usage Category)</p>
               </CardHeader>
               <CardContent>
-                <BarChartComponent
-                  data={branchChartData}
-                  xKey="name"
-                  bars={[{ key: 'utilization', label: 'Utilization' }]}
-                  formatType="percent"
-                  colorByStatus={true}
-                  statusKey="utilization"
-                  showThreshold={true}
-                  thresholdValue={0.8}
-                  layout="horizontal"
-                  height={350}
+                <HeatmapChart
+                  data={heatmapData}
+                  rows={types}
+                  cols={usageCategories}
+                  height={400}
                 />
               </CardContent>
             </Card>
 
-            {/* Detailed Table */}
-            <Card>
+            {/* Trend Chart */}
+            {trendData.length > 0 && (
+              <Card className="surface-raised border-0">
+                <CardHeader>
+                  <CardTitle className="text-base font-semibold">Utilization Trend (LTM)</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <TrendChart
+                    data={trendData as any}
+                    xKey="month"
+                    lines={[
+                      { key: 'utilization', label: 'Utilization', color: 'hsl(var(--lime))' }
+                    ]}
+                    formatType="percent"
+                    height={300}
+                  />
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Branch Table */}
+            <Card className="surface-raised border-0">
               <CardHeader>
-                <CardTitle>Branch Details</CardTitle>
+                <CardTitle className="text-base font-semibold">Branch Performance</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b">
-                        <th className="text-left py-3 px-2 font-medium">Branch</th>
-                        <th className="text-right py-3 px-2 font-medium">Total</th>
-                        <th className="text-right py-3 px-2 font-medium">Leased</th>
-                        <th className="text-right py-3 px-2 font-medium">Available</th>
-                        <th className="text-right py-3 px-2 font-medium">Utilization</th>
+                      <tr className="border-b" style={{ background: 'hsl(var(--steel-dim))' }}>
+                        <th className="text-left py-3 px-4 font-medium">Branch</th>
+                        <th className="text-right py-3 px-4 font-medium">Total</th>
+                        <th className="text-right py-3 px-4 font-medium">Leased</th>
+                        <th className="text-right py-3 px-4 font-medium">Utilization</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {byBranch.map((branch) => {
-                        const status = getUtilizationStatus(branch.utilization)
-                        return (
-                          <tr key={branch.branch} className="border-b hover:bg-muted/50">
-                            <td className="py-3 px-2 font-medium">{branch.branch}</td>
-                            <td className="text-right py-3 px-2">{formatNumber(branch.total_trailers)}</td>
-                            <td className="text-right py-3 px-2">{formatNumber(branch.leased_trailers)}</td>
-                            <td className="text-right py-3 px-2">{formatNumber(branch.total_trailers - branch.leased_trailers)}</td>
-                            <td className="text-right py-3 px-2">
-                              <span className={`font-semibold ${
-                                status === 'good' ? 'text-green-600' :
-                                status === 'warning' ? 'text-amber-600' : 'text-red-600'
-                              }`}>
-                                {formatPercent(branch.utilization)}
-                              </span>
-                            </td>
-                          </tr>
-                        )
-                      })}
+                      {byBranch.map((branch) => (
+                        <tr key={branch.branch} className="border-b hover:bg-slate-50/50">
+                          <td className="py-3 px-4 font-medium">{branch.branch}</td>
+                          <td className="text-right py-3 px-4 tabular-nums">
+                            {formatNumber(branch.total_trailers)}
+                          </td>
+                          <td className="text-right py-3 px-4 tabular-nums">
+                            {formatNumber(branch.leased_trailers)}
+                          </td>
+                          <td className="text-right py-3 px-4">
+                            <span className={cn(
+                              "inline-block px-2 py-0.5 rounded text-xs font-semibold tabular-nums",
+                              getUtilizationClass(branch.utilization)
+                            )}>
+                              {formatPercent(branch.utilization)}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>

@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { KpiCard, KpiGrid } from '@/components/ui/kpi-card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { queryTrident, queryAnalytics } from '@/lib/db'
-import { globalUtilization, utilizationByBranch } from '@/lib/queries/utilization'
+import { globalUtilization } from '@/lib/queries/utilization'
 import { branchSummary } from '@/lib/queries/branches'
 import { formatNumber, formatPercent, formatCurrency } from '@/lib/utils'
 import { 
@@ -127,6 +127,14 @@ function LoadingKpis() {
       ))}
     </KpiGrid>
   )
+}
+
+function getUtilizationClass(util: number): string {
+  if (util >= 0.8) return 'util-full'
+  if (util >= 0.7) return 'util-high'
+  if (util >= 0.6) return 'util-mid'
+  if (util >= 0.4) return 'util-low'
+  return 'util-empty'
 }
 
 export default async function OverviewPage() {
@@ -371,10 +379,7 @@ export default async function OverviewPage() {
                                     style={{ width: `${Math.min(branch.utilization * 100, 100)}%` }}
                                   />
                                 </div>
-                                <span className={`text-xs px-2 py-0.5 rounded-full ${
-                                  status === 'good' ? 'bg-green-100 text-green-700' :
-                                  status === 'warning' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'
-                                }`}>
+                                <span className={`text-xs px-2 py-0.5 rounded-full ${getUtilizationClass(branch.utilization)}`}>
                                   {status === 'good' ? 'Good' : status === 'warning' ? 'Fair' : 'Low'}
                                 </span>
                               </div>

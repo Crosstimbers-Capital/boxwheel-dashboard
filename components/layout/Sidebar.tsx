@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils'
 
 const navigation = [
   { name: 'Overview', href: '/', icon: LayoutDashboard },
-  { name: 'Fleet Utilization', href: '/fleet', icon: Truck },
+  { name: 'Fleet', href: '/fleet', icon: Truck },
   { name: 'Revenue', href: '/revenue', icon: DollarSign },
   { name: 'Idle Assets', href: '/idle', icon: Clock },
   { name: 'Location Tracking', href: '/locations', icon: MapPin },
@@ -26,9 +26,12 @@ export function Sidebar() {
   const pathname = usePathname()
 
   return (
-    <div className="flex h-full w-56 flex-col" style={{ background: 'hsl(220, 13%, 10%)' }}>
+    <div
+      className="flex h-full w-56 flex-col sidebar-dark"
+      style={{ background: 'hsl(var(--asphalt))' }}
+    >
       {/* Logo */}
-      <div className="flex h-16 items-center px-5" style={{ borderBottom: '1px solid hsl(220, 10%, 18%)' }}>
+      <div className="flex h-16 items-center px-5" style={{ borderBottom: '1px solid hsl(var(--asphalt-light))' }}>
         <Link href="/" className="flex items-center gap-2">
           <Image
             src="/boxwheel_logo.png"
@@ -41,7 +44,7 @@ export function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 p-3">
+      <nav className="flex-1 px-2 py-3 space-y-0.5">
         {navigation.map((item) => {
           const isActive = pathname === item.href
           return (
@@ -49,16 +52,11 @@ export function Sidebar() {
               key={item.name}
               href={item.href}
               className={cn(
-                'flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors',
-                isActive
-                  ? 'text-[hsl(72,61%,52%)]'
-                  : 'text-[hsl(220,10%,65%)] hover:text-[hsl(220,10%,90%)]'
+                'nav-item flex items-center gap-2.5',
+                isActive && 'active'
               )}
-              style={{
-                background: isActive ? 'hsl(220, 10%, 16%)' : undefined,
-              }}
             >
-              <item.icon className="h-5 w-5" />
+              <item.icon className="h-4 w-4" strokeWidth={1.75} />
               {item.name}
             </Link>
           )
@@ -66,10 +64,12 @@ export function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="p-3" style={{ borderTop: '1px solid hsl(220, 10%, 18%)' }}>
-        <div className="rounded-md p-3" style={{ background: 'hsl(220, 10%, 14%)' }}>
-          <p className="text-xs font-medium" style={{ color: 'hsl(220, 10%, 80%)' }}>Data Refresh</p>
-          <p className="text-xs mt-0.5" style={{ color: 'hsl(220, 10%, 55%)' }}>
+      <div className="px-4 py-4 border-t" style={{ borderColor: 'hsl(var(--asphalt-light))' }}>
+        <div className="rounded-md p-3" style={{ background: 'hsl(var(--asphalt-light))' }}>
+          <p className="text-[11px] font-medium uppercase tracking-wider" style={{ color: 'hsl(var(--ink-inverse) / 0.4)' }}>
+            Data Refresh
+          </p>
+          <p className="text-xs mt-1 font-medium" style={{ color: 'hsl(var(--ink-inverse) / 0.8)' }}>
             Nightly at ~7:00 PM MST
           </p>
         </div>
