@@ -50,9 +50,9 @@
     /* Mapped to shadcn expectations */
     --background: var(--steel);
     --foreground: var(--ink);
-    --card: 0 0% 100%;
+    --card: 220 10% 96%;
     --card-foreground: var(--ink);
-    --popover: 0 0% 100%;
+    --popover: 220 10% 96%;
     --popover-foreground: var(--ink);
     --primary: var(--lime);
     --primary-foreground: 0 0% 100%;

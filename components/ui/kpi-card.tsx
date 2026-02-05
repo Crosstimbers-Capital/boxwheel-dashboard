@@ -18,14 +18,14 @@ interface KpiCardProps {
 }
 
 const statusStyles: Record<Status, string> = {
-  good: 'border-l-4 border-l-green-500 bg-gradient-to-br from-green-50/50 to-white',
+  good: 'border-l-4 border-l-[hsl(var(--lime))] bg-gradient-to-br from-[hsl(var(--lime)/0.05)] to-white',
   warning: 'border-l-4 border-l-amber-500 bg-gradient-to-br from-amber-50/50 to-white',
   critical: 'border-l-4 border-l-red-500 bg-gradient-to-br from-red-50/50 to-white',
   neutral: 'border-l-4 border-l-gray-300',
 }
 
 const statusTextStyles: Record<Status, string> = {
-  good: 'text-green-700',
+  good: 'text-[hsl(var(--lime-dark))]',
   warning: 'text-amber-700',
   critical: 'text-red-700',
   neutral: 'text-gray-700',

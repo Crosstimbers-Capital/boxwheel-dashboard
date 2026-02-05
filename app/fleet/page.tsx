@@ -1,15 +1,12 @@
 import { Suspense } from 'react'
 import { Header } from '@/components/layout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { KpiCard, KpiGrid } from '@/components/ui/kpi-card'
 import { queryTrident, queryAnalytics } from '@/lib/db'
-import {
-  fleetDataCombined,
-} from '@/lib/queries/utilization'
 import { activeBranches } from '@/lib/queries/branches'
 import { formatNumber, formatPercent } from '@/lib/utils'
 import { getUtilizationStatus, buckets } from '@/lib/config'
-import { Truck, TrendingUp, TrendingDown } from 'lucide-react'
+import { Truck, TrendingDown, ArrowUpRight, ArrowDownRight, RefreshCcw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { HeatmapChart } from '@/components/charts/HeatmapChart'
 import { BarChartComponent } from '@/components/charts/BarChart'
@@ -69,6 +66,16 @@ interface CombinedFleetData {
   matrix_json: string
 }
 
+interface FleetKpis {
+  current_utilization: number
+  previous_utilization: number
+  mm_change: number
+  new_leases: number
+  ended_leases: number
+  asset_churn_pct: number
+  leased_at_start: number
+}
+
 // Helper to add utilization to parsed data
 function addUtilization<T extends { total_trailers: number; leased_trailers: number }>(
   items: T[]
@@ -79,13 +86,20 @@ function addUtilization<T extends { total_trailers: number; leased_trailers: num
   }))
 }
 
-async function getFleetData(branch?: string) {
+async function getFleetData(branch?: string, period: string = 'LTM') {
   const branchFilter = branch && branch !== 'all' ? `AND Fleetcity = '${branch}'` : ''
   const branchFilterAnalytics = branch && branch !== 'all' ? `AND Branch = '${branch}'` : ''
+  const branchFilterLeases = branch && branch !== 'all' ? `AND Unit IN (SELECT Unit FROM TSpecs WHERE Fleetcity = '${branch}')` : ''
+
+  // Determine date range for activity based on period
+  let months = 12
+  if (period === 'L3M') months = 3
+  if (period === 'L6M') months = 6
+  if (period === 'YTD') months = new Date().getMonth() + 1
 
   try {
-    // Single optimized query + branches list (2 queries instead of 6)
-    const [combinedResult, branchList] = await Promise.all([
+    // Run queries in parallel
+    const [combinedResult, branchList, kpiResult] = await Promise.all([
       queryTrident<CombinedFleetData>(`
         WITH BaseData AS (
           SELECT
@@ -142,9 +156,64 @@ async function getFleetData(branch?: string) {
         FROM BaseData
       `),
       queryTrident<{ branch: string }>(activeBranches),
+      // KPI Query (Utilization trend + Churn)
+      queryAnalytics<any>(`
+        DECLARE @MaxMonth CHAR(7) = (SELECT MAX(Month) FROM dbo.vw_LQA_bucketStatistics WHERE Branch != 'TBD');
+        DECLARE @PrevMonth CHAR(7) = FORMAT(DATEADD(MONTH, -1, CAST(@MaxMonth + '-01' AS DATE)), 'yyyy-MM');
+        
+        -- Start of current month for churn calc
+        DECLARE @StartOfPeriod DATE = CAST(@MaxMonth + '-01' AS DATE);
+        DECLARE @EndOfPeriod DATE = EOMONTH(@StartOfPeriod);
+
+        WITH UtilStats AS (
+          SELECT 
+            Month,
+            CAST(SUM(NumRentedTrailers) AS FLOAT) / NULLIF(SUM(NumTrailers), 0) as utilization,
+            SUM(NumRentedTrailers) as leased_count
+          FROM dbo.vw_LQA_bucketStatistics
+          WHERE AggLevel = ${branch && branch !== 'all' ? "'BY_BRANCH'" : "'GLOBAL'"}
+            AND Branch != 'TBD'
+            ${branchFilterAnalytics}
+            AND Month IN (@MaxMonth, @PrevMonth)
+          GROUP BY Month
+        ),
+        LeaseActivity AS (
+          SELECT 
+            COUNT(CASE WHEN DateOn >= DATEADD(MONTH, -${months}, GETDATE()) THEN 1 END) as new_leases,
+            COUNT(CASE WHEN DateOff < GETDATE() AND DateOff >= DATEADD(MONTH, -${months}, GETDATE()) THEN 1 END) as ended_leases
+          FROM TLeases
+          WHERE 1=1 ${branchFilterLeases}
+        ),
+        ChurnCalc AS (
+          -- Units returned in the LATEST month
+          SELECT 
+            COUNT(*) as units_returned_latest
+          FROM TLeases
+          WHERE DateOff >= @StartOfPeriod AND DateOff <= @EndOfPeriod
+            ${branchFilterLeases}
+        )
+        SELECT 
+          (SELECT utilization FROM UtilStats WHERE Month = @MaxMonth) as current_utilization,
+          (SELECT utilization FROM UtilStats WHERE Month = @PrevMonth) as previous_utilization,
+          (SELECT leased_count FROM UtilStats WHERE Month = @PrevMonth) as leased_at_start,
+          (SELECT new_leases FROM LeaseActivity) as new_leases,
+          (SELECT ended_leases FROM LeaseActivity) as ended_leases,
+          (SELECT units_returned_latest FROM ChurnCalc) as units_returned_latest
+      `)
     ])
 
     const combined = combinedResult[0]
+    const kpisRaw = kpiResult[0]
+
+    const kpis: FleetKpis = {
+      current_utilization: kpisRaw.current_utilization || (combined.total_trailers > 0 ? combined.leased_trailers / combined.total_trailers : 0),
+      previous_utilization: kpisRaw.previous_utilization || 0,
+      mm_change: (kpisRaw.current_utilization || 0) - (kpisRaw.previous_utilization || 0),
+      new_leases: kpisRaw.new_leases || 0,
+      ended_leases: kpisRaw.ended_leases || 0,
+      leased_at_start: kpisRaw.leased_at_start || 0,
+      asset_churn_pct: kpisRaw.leased_at_start > 0 ? (kpisRaw.units_returned_latest || 0) / kpisRaw.leased_at_start : 0
+    }
     
     // Parse JSON results and add computed utilization
     const byBranch = addUtilization(
@@ -199,6 +268,7 @@ async function getFleetData(branch?: string) {
       matrix,
       branches: branchList.map(b => b.branch),
       trendData,
+      kpis,
       error: null,
     }
   } catch (error) {
@@ -211,6 +281,7 @@ async function getFleetData(branch?: string) {
       matrix: [],
       branches: [],
       trendData: [],
+      kpis: null,
       error: error instanceof Error ? error.message : 'Unknown error',
     }
   }
@@ -230,10 +301,11 @@ function getUtilizationClass(util: number): string {
 export default async function FleetPage({
   searchParams,
 }: {
-  searchParams: { branch?: string }
+  searchParams: { branch?: string; period?: string }
 }) {
   const branch = searchParams.branch
-  const { byBranch, byType, byUsage, matrix, branches, trendData, error } = await getFleetData(branch)
+  const period = searchParams.period || 'LTM'
+  const { byBranch, byType, byUsage, matrix, branches, trendData, kpis, error } = await getFleetData(branch, period)
 
   // Transform matrix data for heatmap
   const types = [...new Set(matrix.map(m => m.type_bucket))].sort()
@@ -284,6 +356,40 @@ export default async function FleetPage({
         ) : (
           <>
             <FleetFilters branches={branches} />
+
+            {/* KPI Row */}
+            {kpis && (
+              <KpiGrid columns={4}>
+                <KpiCard
+                  title="Current Utilization"
+                  value={formatPercent(kpis.current_utilization)}
+                  subtitle="Active Leases / Total Fleet"
+                  status={getUtilizationStatus(kpis.current_utilization)}
+                  icon={Truck}
+                />
+                <KpiCard
+                  title="M/M Change"
+                  value={formatPercent(Math.abs(kpis.mm_change))}
+                  subtitle={kpis.mm_change >= 0 ? "Increase from prev month" : "Decrease from prev month"}
+                  status={kpis.mm_change >= 0 ? 'good' : 'critical'}
+                  icon={kpis.mm_change >= 0 ? ArrowUpRight : ArrowDownRight}
+                />
+                <KpiCard
+                  title="Lease Activity"
+                  value={`${kpis.new_leases} / ${kpis.ended_leases}`}
+                  subtitle={`New vs Ended (${period})`}
+                  status={kpis.new_leases >= kpis.ended_leases ? 'good' : 'warning'}
+                  icon={RefreshCcw}
+                />
+                <KpiCard
+                  title="Asset Churn (Turn-in)"
+                  value={formatPercent(kpis.asset_churn_pct)}
+                  subtitle="Units Returned / Leased at Start"
+                  status={kpis.asset_churn_pct < 0.05 ? 'good' : 'warning'}
+                  icon={TrendingDown}
+                />
+              </KpiGrid>
+            )}
 
             {/* Utilization by Type */}
             <div className="grid gap-6 lg:grid-cols-2">
