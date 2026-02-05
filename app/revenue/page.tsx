@@ -60,9 +60,12 @@ interface TrendData {
   avg_billed_rate: number
   avg_card_rate: number
   avg_variance: number
+  [key: string]: string | number
 }
 
-async function getRevenueData() {
+async function getRevenueData(branch?: string) {
+  const branchFilter = branch && branch !== 'all' ? `AND Branch = '${branch}'` : ''
+
   try {
     const [branchList] = await Promise.all([
       queryTrident<{ branch: string }>(activeBranches),
@@ -99,6 +102,8 @@ async function getRevenueData() {
             SUM(CASE WHEN MonthlyRateVariance < 0 THEN 1 ELSE 0 END) as below_card
           FROM dbo.vw_RevenueDetails
           WHERE CardRateMonth IS NOT NULL
+            AND Branch != 'TBD'
+            ${branchFilter}
         `),
         queryAnalytics<BranchRevenue>(`
           SELECT 
@@ -112,7 +117,9 @@ async function getRevenueData() {
               THEN (BilledMonthlyRate - CardRateMonth) / CardRateMonth 
               ELSE NULL END) as avg_variance_pct
           FROM dbo.vw_RevenueDetails
-          WHERE CardRateMonth IS NOT NULL AND Branch IS NOT NULL
+          WHERE CardRateMonth IS NOT NULL 
+            AND Branch IS NOT NULL AND Branch != 'TBD'
+            ${branchFilter}
           GROUP BY Branch
           ORDER BY Branch
         `),
@@ -126,6 +133,8 @@ async function getRevenueData() {
             AVG(MonthlyRateVariance) as avg_variance
           FROM dbo.vw_RevenueDetails
           WHERE CardRateMonth IS NOT NULL
+            AND Branch != 'TBD'
+            ${branchFilter}
           GROUP BY TypeBucket
           ORDER BY total_billed DESC
         `),
@@ -141,6 +150,8 @@ async function getRevenueData() {
             COUNT(*) as invoice_count,
             SUM(BilledMonthlyRate) as total_billed
           FROM dbo.vw_RevenueDetails
+          WHERE Branch != 'TBD'
+            ${branchFilter}
           GROUP BY 
             CASE 
               WHEN CardRateMonth IS NULL THEN 'No Card Rate'
@@ -159,6 +170,8 @@ async function getRevenueData() {
             SUM(BilledMonthlyRate) as total_revenue_at_risk
           FROM dbo.vw_RevenueDetails
           WHERE CardRateMonth IS NULL
+            AND Branch != 'TBD'
+            ${branchFilter}
           GROUP BY TypeBucket, UsageCategory, LengthBucket
           ORDER BY unit_count DESC
         `),
@@ -170,6 +183,8 @@ async function getRevenueData() {
             AVG(MonthlyRateVariance) as avg_variance
           FROM dbo.vw_RevenueDetails
           WHERE CardRateMonth IS NOT NULL
+            AND Branch != 'TBD'
+            ${branchFilter}
           GROUP BY FORMAT(BillingStopDate, 'yyyy-MM')
           ORDER BY month
         `),
@@ -210,8 +225,13 @@ async function getRevenueData() {
   }
 }
 
-export default async function RevenuePage() {
-  const { summary, byBranch, byType, varianceDistribution, unitsWithoutRate, trendData, branches, error } = await getRevenueData()
+export default async function RevenuePage({
+  searchParams,
+}: {
+  searchParams: { branch?: string }
+}) {
+  const branch = searchParams.branch
+  const { summary, byBranch, byType, varianceDistribution, unitsWithoutRate, trendData, branches, error } = await getRevenueData(branch)
 
   const varianceStatus = summary ? getRateVarianceStatus(summary.avg_variance_pct || 0) : 'neutral'
   

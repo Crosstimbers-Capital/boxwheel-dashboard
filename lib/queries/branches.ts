@@ -12,26 +12,48 @@
 export const activeBranches = `
   SELECT DISTINCT Fleetcity as branch
   FROM TSpecs
-  WHERE Status = 'AVAILABLE' OR Status = 'LEASED'
+  WHERE (Status = 'AVAILABLE' OR Status = 'LEASED')
+    AND Fleetcity != 'TBD'
   ORDER BY Fleetcity
 `
 
 /**
- * Branch summary with key metrics
+ * Branch summary with key metrics and most available trailer type
  */
 export const branchSummary = `
-  SELECT
-    Fleetcity as branch,
-    COUNT(*) as total_trailers,
-    SUM(CASE WHEN Status = 'LEASED' THEN 1 ELSE 0 END) as leased_count,
-    SUM(CASE WHEN Status = 'AVAILABLE' THEN 1 ELSE 0 END) as available_count,
-    CAST(SUM(CASE WHEN Status = 'LEASED' THEN 1 ELSE 0 END) AS FLOAT) /
-      NULLIF(COUNT(*), 0) as utilization
-  FROM TSpecs
-  WHERE (Status = 'AVAILABLE' OR Status = 'LEASED')
-    AND Fleetcity IS NOT NULL AND Fleetcity != ''
-  GROUP BY Fleetcity
-  ORDER BY Fleetcity
+  WITH BranchBase AS (
+    SELECT
+      Fleetcity as branch,
+      COUNT(*) as total_trailers,
+      SUM(CASE WHEN Status = 'LEASED' THEN 1 ELSE 0 END) as leased_count,
+      SUM(CASE WHEN Status = 'AVAILABLE' THEN 1 ELSE 0 END) as available_count,
+      CAST(SUM(CASE WHEN Status = 'LEASED' THEN 1 ELSE 0 END) AS FLOAT) /
+        NULLIF(COUNT(*), 0) as utilization
+    FROM TSpecs
+    WHERE (Status = 'AVAILABLE' OR Status = 'LEASED')
+      AND Fleetcity IS NOT NULL AND Fleetcity != '' AND Fleetcity != 'TBD'
+    GROUP BY Fleetcity
+  ),
+  TypeAvailability AS (
+    SELECT 
+      Fleetcity as branch,
+      Type,
+      Length,
+      COUNT(*) as type_count,
+      ROW_NUMBER() OVER (PARTITION BY Fleetcity ORDER BY COUNT(*) DESC, Type, Length) as rank
+    FROM TSpecs
+    WHERE Status = 'AVAILABLE'
+      AND Fleetcity IS NOT NULL AND Fleetcity != '' AND Fleetcity != 'TBD'
+    GROUP BY Fleetcity, Type, Length
+  )
+  SELECT 
+    b.*,
+    ta.Type as most_available_type,
+    ta.Length as most_available_length,
+    ta.type_count as most_available_count
+  FROM BranchBase b
+  LEFT JOIN TypeAvailability ta ON b.branch = ta.branch AND ta.rank = 1
+  ORDER BY b.branch
 `
 
 /**
@@ -55,7 +77,7 @@ export const branchFleetComposition = `
     SUM(CASE WHEN s.Status = 'LEASED' THEN 1 ELSE 0 END) as leased_count
   FROM TSpecs s
   WHERE (s.Status = 'AVAILABLE' OR s.Status = 'LEASED')
-    AND s.Fleetcity IS NOT NULL AND s.Fleetcity != ''
+    AND s.Fleetcity IS NOT NULL AND s.Fleetcity != '' AND s.Fleetcity != 'TBD'
   GROUP BY s.Fleetcity,
     CASE 
       WHEN s.Type IS NULL OR LTRIM(RTRIM(s.Type)) = '' 

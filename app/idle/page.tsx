@@ -1,13 +1,14 @@
 import { Header } from '@/components/layout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { KpiCard, KpiGrid } from '@/components/ui/kpi-card'
-import { query } from '@/lib/db'
+import { query, queryTrident } from '@/lib/db'
 import { formatNumber, formatCurrency } from '@/lib/utils'
 import { getIdleStatus, colors } from '@/lib/config'
 import { Clock, AlertTriangle, Ban, DollarSign } from 'lucide-react'
 import { BarChartComponent } from '@/components/charts/BarChart'
 import { DonutChart } from '@/components/charts/DonutChart'
 import { IdleFilters } from './idle-filters'
+import { activeBranches } from '@/lib/queries/branches'
 
 interface IdleSummary {
   total_idle: number
@@ -46,10 +47,12 @@ interface CriticalAsset {
   card_rate: number
 }
 
-async function getIdleData() {
+async function getIdleData(branch?: string) {
+  const branchFilter = branch && branch !== 'all' ? `AND Branch = '${branch}'` : ''
+
   try {
     // Run queries in parallel - 3 simple queries
-    const [summaryResult, durationResult, branchResult] = await Promise.all([
+    const [summaryResult, durationResult, branchResult, branchList] = await Promise.all([
       // Summary metrics
       query<IdleSummary>(`
         SELECT 
@@ -61,6 +64,8 @@ async function getIdleData() {
           SUM(CASE WHEN IdleDurationBucket = '24+ Months' THEN 1 ELSE 0 END) as critical_count
         FROM dbo.vw_IdleAssetsOverTime
         WHERE MonthStr = (SELECT MAX(MonthStr) FROM dbo.vw_IdleAssetsOverTime)
+          AND Branch != 'TBD'
+          ${branchFilter}
       `),
       
       // By Duration bucket
@@ -73,6 +78,8 @@ async function getIdleData() {
           ISNULL(SUM(CardRate), 0) as monthly_opportunity_cost
         FROM dbo.vw_IdleAssetsOverTime
         WHERE MonthStr = (SELECT MAX(MonthStr) FROM dbo.vw_IdleAssetsOverTime)
+          AND Branch != 'TBD'
+          ${branchFilter}
         GROUP BY IdleDurationBucket
       `),
       
@@ -87,8 +94,11 @@ async function getIdleData() {
           SUM(CASE WHEN CumulativeLeases = 0 THEN 1 ELSE 0 END) as never_leased_count
         FROM dbo.vw_IdleAssetsOverTime
         WHERE MonthStr = (SELECT MAX(MonthStr) FROM dbo.vw_IdleAssetsOverTime)
+          AND Branch != 'TBD'
+          ${branchFilter}
         GROUP BY Branch
       `),
+      queryTrident<{ branch: string }>(activeBranches),
     ])
 
     const summary = summaryResult[0]
@@ -118,6 +128,8 @@ async function getIdleData() {
         FROM dbo.vw_IdleAssetsOverTime
         WHERE MonthStr = (SELECT MAX(MonthStr) FROM dbo.vw_IdleAssetsOverTime)
           AND IdleDurationBucket = '24+ Months'
+          AND Branch != 'TBD'
+          ${branchFilter}
         ORDER BY MonthsIdle DESC
       `)
     } catch (e) {
@@ -129,7 +141,7 @@ async function getIdleData() {
       byDuration,
       byBranch,
       criticalAssets,
-      branches: byBranch.map(b => b.branch),
+      branches: branchList.map(b => b.branch),
       error: null,
     }
   } catch (error) {
@@ -145,8 +157,13 @@ async function getIdleData() {
   }
 }
 
-export default async function IdleAssetsPage() {
-  const { summary, byDuration, byBranch, criticalAssets, branches, error } = await getIdleData()
+export default async function IdleAssetsPage({
+  searchParams,
+}: {
+  searchParams: { branch?: string }
+}) {
+  const branch = searchParams.branch
+  const { summary, byDuration, byBranch, criticalAssets, branches, error } = await getIdleData(branch)
 
   const idleStatus = summary ? getIdleStatus(summary.avg_months_idle) : 'neutral'
   

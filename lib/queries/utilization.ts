@@ -19,7 +19,8 @@ export const globalUtilization = `
     SUM(CASE WHEN Status = 'AVAILABLE' THEN 1 ELSE 0 END) as available_trailers,
     SUM(CASE WHEN Status NOT IN ('LEASED', 'AVAILABLE') THEN 1 ELSE 0 END) as other_status
   FROM TSpecs
-  WHERE Status = 'AVAILABLE' OR Status = 'LEASED'
+  WHERE (Status = 'AVAILABLE' OR Status = 'LEASED')
+    AND Fleetcity != 'TBD'
 `
 
 /**
@@ -34,7 +35,7 @@ export const utilizationByBranch = `
       NULLIF(COUNT(*), 0) as utilization
   FROM TSpecs
   WHERE (Status = 'AVAILABLE' OR Status = 'LEASED')
-    AND Fleetcity IS NOT NULL AND Fleetcity != ''
+    AND Fleetcity IS NOT NULL AND Fleetcity != '' AND Fleetcity != 'TBD'
   GROUP BY Fleetcity
   ORDER BY Fleetcity
 `
@@ -60,7 +61,8 @@ export const utilizationByType = `
     CAST(SUM(CASE WHEN Status = 'LEASED' THEN 1 ELSE 0 END) AS FLOAT) /
       NULLIF(COUNT(*), 0) as utilization
   FROM TSpecs
-  WHERE Status = 'AVAILABLE' OR Status = 'LEASED'
+  WHERE (Status = 'AVAILABLE' OR Status = 'LEASED')
+    AND Fleetcity != 'TBD'
   GROUP BY 
     CASE 
       WHEN Type IS NULL OR LTRIM(RTRIM(Type)) = '' 
@@ -94,7 +96,8 @@ export const utilizationByUsage = `
     CAST(SUM(CASE WHEN Status = 'LEASED' THEN 1 ELSE 0 END) AS FLOAT) /
       NULLIF(COUNT(*), 0) as utilization
   FROM TSpecs
-  WHERE Status = 'AVAILABLE' OR Status = 'LEASED'
+  WHERE (Status = 'AVAILABLE' OR Status = 'LEASED')
+    AND Fleetcity != 'TBD'
   GROUP BY 
     CASE 
       WHEN (YEAR(GETDATE()) - TRY_CAST(Year AS INT)) BETWEEN 0 AND 3 THEN 'OTR_0'
@@ -136,7 +139,8 @@ export const utilizationMatrix = `
     CAST(SUM(CASE WHEN Status = 'LEASED' THEN 1 ELSE 0 END) AS FLOAT) /
       NULLIF(COUNT(*), 0) as utilization
   FROM TSpecs
-  WHERE Status = 'AVAILABLE' OR Status = 'LEASED'
+  WHERE (Status = 'AVAILABLE' OR Status = 'LEASED')
+    AND Fleetcity != 'TBD'
   GROUP BY 
     CASE 
       WHEN Type IS NULL OR LTRIM(RTRIM(Type)) = '' 
@@ -191,6 +195,7 @@ export const fleetDataCombined = `
       END AS usage_category
     FROM TSpecs
     WHERE Status IN ('AVAILABLE', 'LEASED')
+      AND Fleetcity != 'TBD'
   )
   SELECT
     -- Global metrics
@@ -231,6 +236,7 @@ export const utilizationTrend = `
   FROM dbo.vw_LQA_bucketStatistics
   WHERE AggLevel = 'GLOBAL'
     AND Month >= FORMAT(DATEADD(MONTH, -12, GETDATE()), 'yyyy-MM')
+    AND Branch != 'TBD'
   GROUP BY Month
   ORDER BY Month
 `
@@ -248,7 +254,7 @@ export const utilizationTrendByBranch = `
   FROM dbo.vw_LQA_bucketStatistics
   WHERE AggLevel = 'BY_BRANCH'
     AND Month >= FORMAT(DATEADD(MONTH, -12, GETDATE()), 'yyyy-MM')
-    AND Branch != 'ALL'
+    AND Branch != 'ALL' AND Branch != 'TBD'
   GROUP BY Month, Branch
   ORDER BY Month, Branch
 `

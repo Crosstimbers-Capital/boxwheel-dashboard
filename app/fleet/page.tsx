@@ -79,11 +79,68 @@ function addUtilization<T extends { total_trailers: number; leased_trailers: num
   }))
 }
 
-async function getFleetData() {
+async function getFleetData(branch?: string) {
+  const branchFilter = branch && branch !== 'all' ? `AND Fleetcity = '${branch}'` : ''
+  const branchFilterAnalytics = branch && branch !== 'all' ? `AND Branch = '${branch}'` : ''
+
   try {
     // Single optimized query + branches list (2 queries instead of 6)
     const [combinedResult, branchList] = await Promise.all([
-      queryTrident<CombinedFleetData>(fleetDataCombined),
+      queryTrident<CombinedFleetData>(`
+        WITH BaseData AS (
+          SELECT
+            Unit,
+            Status,
+            Fleetcity,
+            CASE 
+              WHEN Type IS NULL OR LTRIM(RTRIM(Type)) = '' 
+                OR LTRIM(RTRIM(Type)) IN ('CHASSIS', 'CONGEAR', 'CURTAIN', 'DROPDECK',
+                    'ELECTRIC STANDBY UNIT', 'REEFER ELECTRIC STANDBY UNIT', 'SEE COMMENTS', 
+                    'MOVE VAN', 'STEPDECK', 'PUP', 'PUP VAN')
+              THEN 'SPECIALTY'
+              WHEN LTRIM(RTRIM(Type)) IN ('VAN', 'DRY VAN') THEN 'DRY_VAN'
+              WHEN LTRIM(RTRIM(Type)) IN ('VAN LIFTGATE', 'LIFTGATE') THEN 'DRY_VAN_LIFTGATE'
+              WHEN LTRIM(RTRIM(Type)) IN ('REEFER LIFTGATE') THEN 'REEFER_LIFTGATE'
+              ELSE LTRIM(RTRIM(Type))
+            END AS type_bucket,
+            CASE 
+              WHEN (YEAR(GETDATE()) - TRY_CAST(Year AS INT)) BETWEEN 0 AND 3 THEN 'OTR_0'
+              WHEN (YEAR(GETDATE()) - TRY_CAST(Year AS INT)) BETWEEN 4 AND 6 THEN 'OTR_1'
+              WHEN (YEAR(GETDATE()) - TRY_CAST(Year AS INT)) BETWEEN 7 AND 8 THEN 'OTR_2'
+              WHEN (YEAR(GETDATE()) - TRY_CAST(Year AS INT)) BETWEEN 9 AND 12 THEN 'CART_1'
+              WHEN (YEAR(GETDATE()) - TRY_CAST(Year AS INT)) BETWEEN 13 AND 16 THEN 'CART_2'
+              ELSE 'STORAGE'
+            END AS usage_category
+          FROM TSpecs
+          WHERE Status IN ('AVAILABLE', 'LEASED')
+            AND Fleetcity != 'TBD'
+            ${branchFilter}
+        )
+        SELECT
+          -- Global metrics
+          COUNT(*) as total_trailers,
+          SUM(CASE WHEN Status = 'LEASED' THEN 1 ELSE 0 END) as leased_trailers,
+          SUM(CASE WHEN Status = 'AVAILABLE' THEN 1 ELSE 0 END) as available_trailers,
+          -- Breakdown data as JSON strings for parsing
+          (SELECT Fleetcity as branch, 
+                  COUNT(*) as total_trailers, 
+                  SUM(CASE WHEN Status = 'LEASED' THEN 1 ELSE 0 END) as leased_trailers
+           FROM BaseData WHERE Fleetcity IS NOT NULL AND Fleetcity != ''
+           GROUP BY Fleetcity FOR JSON PATH) as by_branch_json,
+          (SELECT type_bucket, 
+                  COUNT(*) as total_trailers, 
+                  SUM(CASE WHEN Status = 'LEASED' THEN 1 ELSE 0 END) as leased_trailers
+           FROM BaseData GROUP BY type_bucket FOR JSON PATH) as by_type_json,
+          (SELECT usage_category, 
+                  COUNT(*) as total_trailers, 
+                  SUM(CASE WHEN Status = 'LEASED' THEN 1 ELSE 0 END) as leased_trailers
+           FROM BaseData GROUP BY usage_category FOR JSON PATH) as by_usage_json,
+          (SELECT type_bucket, usage_category, 
+                  COUNT(*) as total_trailers, 
+                  SUM(CASE WHEN Status = 'LEASED' THEN 1 ELSE 0 END) as leased_trailers
+           FROM BaseData GROUP BY type_bucket, usage_category FOR JSON PATH) as matrix_json
+        FROM BaseData
+      `),
       queryTrident<{ branch: string }>(activeBranches),
     ])
 
@@ -123,8 +180,10 @@ async function getFleetData() {
           SUM(NumTrailers) as total_trailers,
           CAST(SUM(NumRentedTrailers) AS FLOAT) / NULLIF(SUM(NumTrailers), 0) as utilization
         FROM dbo.vw_LQA_bucketStatistics
-        WHERE AggLevel = 'GLOBAL'
+        WHERE AggLevel = ${branch && branch !== 'all' ? "'BY_BRANCH'" : "'GLOBAL'"}
           AND Month >= FORMAT(DATEADD(MONTH, -12, GETDATE()), 'yyyy-MM')
+          AND Branch != 'TBD'
+          ${branchFilterAnalytics}
         GROUP BY Month
         ORDER BY Month
       `)
@@ -168,8 +227,13 @@ function getUtilizationClass(util: number): string {
   return 'util-empty'
 }
 
-export default async function FleetPage() {
-  const { byBranch, byType, byUsage, matrix, branches, trendData, error } = await getFleetData()
+export default async function FleetPage({
+  searchParams,
+}: {
+  searchParams: { branch?: string }
+}) {
+  const branch = searchParams.branch
+  const { byBranch, byType, byUsage, matrix, branches, trendData, error } = await getFleetData(branch)
 
   // Transform matrix data for heatmap
   const types = [...new Set(matrix.map(m => m.type_bucket))].sort()
@@ -190,19 +254,15 @@ export default async function FleetPage() {
     leased: t.leased_trailers,
   }))
 
-  const usageChartData = byUsage.map(u => ({
-    name: buckets.usage.find(b => b.value === u.usage_category)?.label || u.usage_category,
-    utilization: u.utilization,
-    total: u.total_trailers,
-    leased: u.leased_trailers,
-  }))
-
-  const branchChartData = byBranch.slice(0, 10).map(b => ({
-    name: b.branch,
-    utilization: b.utilization,
-    total: b.total_trailers,
-    leased: b.leased_trailers,
-  }))
+  const usageOrder = ['OTR_0', 'OTR_1', 'OTR_2', 'CART_1', 'CART_2', 'STORAGE']
+  const usageChartData = [...byUsage]
+    .sort((a, b) => usageOrder.indexOf(a.usage_category) - usageOrder.indexOf(b.usage_category))
+    .map(u => ({
+      name: buckets.usage.find(b => b.value === u.usage_category)?.label || u.usage_category,
+      utilization: u.utilization,
+      total: u.total_trailers,
+      leased: u.leased_trailers,
+    }))
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -269,7 +329,6 @@ export default async function FleetPage() {
                   data={heatmapData}
                   rows={types}
                   cols={usageCategories}
-                  height={400}
                 />
               </CardContent>
             </Card>

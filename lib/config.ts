@@ -98,12 +98,12 @@ export const colors = {
 
   // Status colors - industrial themed
   status: {
-    good: 'hsl(72, 55%, 45%)',           // Lime-green for good
+    good: 'hsl(72, 55%, 45%)',           // Brand Lime for good
     goodBg: 'hsl(72, 40%, 92%)',
-    warning: 'hsl(45, 90%, 50%)',        // Yellow/amber for warning
-    warningBg: 'hsl(45, 80%, 92%)',
-    critical: 'hsl(0, 70%, 55%)',        // Red for critical
-    criticalBg: 'hsl(0, 70%, 94%)',
+    warning: 'hsl(38, 92%, 50%)',        // Industrial Amber for warning
+    warningBg: 'hsl(38, 80%, 92%)',
+    critical: 'hsl(0, 72%, 51%)',        // Industrial Red for critical
+    criticalBg: 'hsl(0, 55%, 95%)',
     neutral: 'hsl(220, 10%, 50%)',       // Slate grey for neutral
     neutralBg: 'hsl(220, 10%, 95%)',
   },

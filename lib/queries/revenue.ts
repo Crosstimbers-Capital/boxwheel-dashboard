@@ -23,6 +23,7 @@ export const revenueSummary = `
     SUM(CASE WHEN MonthlyRateVariance < 0 THEN 1 ELSE 0 END) as below_card
   FROM dbo.vw_RevenueDetails
   WHERE CardRateMonth IS NOT NULL
+    AND Branch != 'TBD'
 `
 
 /**
@@ -41,7 +42,7 @@ export const revenueByBranch = `
       ELSE NULL END) as avg_variance_pct
   FROM dbo.vw_RevenueDetails
   WHERE CardRateMonth IS NOT NULL
-    AND Branch IS NOT NULL
+    AND Branch IS NOT NULL AND Branch != 'TBD'
   GROUP BY Branch
   ORDER BY Branch
 `
@@ -59,6 +60,7 @@ export const revenueByType = `
     AVG(MonthlyRateVariance) as avg_variance
   FROM dbo.vw_RevenueDetails
   WHERE CardRateMonth IS NOT NULL
+    AND Branch != 'TBD'
   GROUP BY TypeBucket
   ORDER BY total_billed DESC
 `
@@ -76,6 +78,7 @@ export const revenueByUsage = `
     AVG(MonthlyRateVariance) as avg_variance
   FROM dbo.vw_RevenueDetails
   WHERE CardRateMonth IS NOT NULL
+    AND Branch != 'TBD'
   GROUP BY UsageCategory
   ORDER BY usage_category
 `
@@ -93,6 +96,7 @@ export const revenueTrend = `
     AVG(MonthlyRateVariance) as avg_variance
   FROM dbo.vw_RevenueDetails
   WHERE CardRateMonth IS NOT NULL
+    AND Branch != 'TBD'
   GROUP BY FORMAT(BillingStopDate, 'yyyy-MM')
   ORDER BY month
 `
@@ -113,6 +117,7 @@ export const unitsWithoutCardRate = `
     COUNT(*) as invoice_count
   FROM dbo.vw_RevenueDetails
   WHERE CardRateMonth IS NULL
+    AND Branch != 'TBD'
   GROUP BY UnitNumber, Branch, TypeBucket, UsageCategory, LengthBucket, YearRange
   ORDER BY Branch, TypeBucket
 `
@@ -129,6 +134,7 @@ export const unitsWithoutCardRateSummary = `
     SUM(BilledMonthlyRate) as total_revenue_at_risk
   FROM dbo.vw_RevenueDetails
   WHERE CardRateMonth IS NULL
+    AND Branch != 'TBD'
   GROUP BY TypeBucket, UsageCategory, LengthBucket
   ORDER BY unit_count DESC
 `
@@ -149,6 +155,7 @@ export const revenueVarianceDistribution = `
     COUNT(*) as invoice_count,
     SUM(BilledMonthlyRate) as total_billed
   FROM dbo.vw_RevenueDetails
+  WHERE Branch != 'TBD'
   GROUP BY 
     CASE 
       WHEN CardRateMonth IS NULL THEN 'No Card Rate'
